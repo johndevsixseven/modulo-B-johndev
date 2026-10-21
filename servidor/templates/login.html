@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="caixa" style="max-width: 320px; margin: 60px auto;">
+  <h2>VaxGuard Connect</h2>
+  <form method="post">
+    <label>Usuário <input name="usuario" autocomplete="username" required autofocus></label><br>
+    <label>Senha <input name="senha" type="password" autocomplete="current-password" required></label><br>
+    <button>Entrar</button>
+  </form>
+</div>
+{% endblock %}

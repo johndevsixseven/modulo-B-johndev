@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h2>Câmaras frias</h2>
+<div class="cartoes" id="cartoes">Carregando…</div>
+
+{% if disp %}
+<h2>{{ disp.nome }} ({{ disp.id }}) — {{ disp.placa }}</h2>
+<div class="caixa">
+  <p id="detalhe">Carregando…</p>
+  <canvas id="grafico" height="110"></canvas>
+</div>
+
+{% if session.perfil == 'ADMINISTRADOR' %}
+<h3>Comandos (ADMINISTRADOR)</h3>
+<div class="caixa">
+  <form class="linha" method="post" action="{{ url_for('painel.alterar_limites', device_id=disp.id) }}">
+    <label>Mín (°C) <input name="min" type="number" step="0.1" value="{{ disp.temp_min }}" required></label>
+    <label>Máx (°C) <input name="max" type="number" step="0.1" value="{{ disp.temp_max }}" required></label>
+    <button>Salvar faixa ideal</button>
+  </form>
+  <form class="linha" method="post" action="{{ url_for('painel.comando', device_id=disp.id) }}">
+    <input type="hidden" name="tipo" value="SET_INTERVALO">
+    <label>Intervalo (s) <input name="segundos" type="number" min="1" max="3600" value="{{ disp.intervalo_s }}" required></label>
+    <button>Alterar intervalo</button>
+  </form>
+  {% for tipo, texto in [('VENTILACAO_ON', 'Ligar ventilação'), ('VENTILACAO_OFF', 'Desligar ventilação'), ('REINICIAR', 'Reiniciar dispositivo')] %}
+  <form class="linha" method="post" action="{{ url_for('painel.comando', device_id=disp.id) }}" style="display:inline-flex">
+    <button name="tipo" value="{{ tipo }}">{{ texto }}</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h3>Últimos comandos</h3>
+<div class="tabela"><table>
+  <tr><th>#</th><th>Tipo</th><th>Parâmetros</th><th>Status</th><th>Por</th></tr>
+  {% for c in comandos %}
+  <tr><td>{{ c.id }}</td><td>{{ c.tipo }}</td><td>{{ c.parametros }}</td><td>{{ c.status }}</td><td>{{ c.criado_por }}</td></tr>
+  {% else %}<tr><td colspan="5">Nenhum comando.</td></tr>{% endfor %}
+</table></div>
+{% endif %}
+
+{% if session.perfil == 'ADMINISTRADOR' %}
+<h3>Cadastrar dispositivo</h3>
+<form class="linha caixa" method="post" action="{{ url_for('painel.cadastrar') }}">
+  <label>ID <input name="device_id" placeholder="VG-CAM03" required></label>
+  <label>Nome <input name="nome"></label>
+  <label>Placa <select name="placa">{% for p in placas %}<option>{{ p }}</option>{% endfor %}</select></label>
+  <button>Cadastrar</button>
+</form>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const ESCOLHIDO = {{ (disp.id if disp else none) | tojson }};
+let grafico = null;
+
+function fmt(v, unidade) { return v === null || v === undefined ? '—' : v.toFixed(1) + unidade; }
+function hora(ts) { return new Date(ts * 1000).toLocaleTimeString('pt-BR'); }
+
+// Cartões: estado atual de todos os dispositivos.
+async function atualizarCartoes() {
+  const lista = await (await fetch('/painel/estado')).json();
+  const div = document.getElementById('cartoes');
+  div.innerHTML = lista.length ? '' : 'Nenhum dispositivo ainda. Ligue o ESP32 ou rode o simulador.';
+  for (const d of lista) {
+    const u = d.ultima || {};
+    const status = d.online ? 'ONLINE' : 'OFFLINE';
+    const cartao = document.createElement('div');
+    cartao.className = 'cartao' + (d.id === ESCOLHIDO ? ' escolhido' : '');
+    // id, placa e estado já foram validados pela API (só letras, números, _ e -)
+    cartao.innerHTML = `<a href="/?d=${d.id}"><b>${d.id}</b> · ${d.placa}<br>
+      <span class="${status}">${status}</span> · <span class="${u.estado || ''}">${u.estado || 'sem dados'}</span><br>
+      ${fmt(u.temp, ' °C')} · ${fmt(u.umid, ' %')} · porta ${u.porta ? 'ABERTA' : 'fechada'}<br>
+      faixa ${d.temp_min}–${d.temp_max} °C · alertas abertos: ${d.alertas_abertos}</a>`;
+    div.appendChild(cartao);
+    if (d.id === ESCOLHIDO) {
+      document.getElementById('detalhe').innerHTML =
+        `<span class="${status}">${status}</span> · estado <b class="${u.estado || ''}">${u.estado || '—'}</b> · ` +
+        `temp ${fmt(u.temp, ' °C')} (NTC ${fmt(u.temp_ntc, ' °C')}) · umid ${fmt(u.umid, ' %')} · ` +
+        `porta ${u.porta ? 'ABERTA' : 'fechada'} · ventilação ${u.ventilacao ? 'LIGADA' : 'desligada'}` +
+        (u.ts ? ` · última leitura ${hora(u.ts)}` : '');
+      atualizarGrafico(d);
+    }
+  }
+}
+
+// Gráfico: temperatura, umidade e faixa ideal dos últimos 30 min.
+async function atualizarGrafico(d) {
+  const linhas = await (await fetch('/painel/leituras?d=' + encodeURIComponent(d.id))).json();
+  const dados = {
+    labels: linhas.map(l => hora(l.ts)),
+    datasets: [
+      { label: 'Temperatura (°C)', data: linhas.map(l => l.temp), borderColor: '#c0392b', yAxisID: 'y', pointRadius: 1 },
+      { label: 'Mín ideal', data: linhas.map(() => d.temp_min), borderColor: '#27ae60', borderDash: [5, 5], pointRadius: 0, yAxisID: 'y' },
+      { label: 'Máx ideal', data: linhas.map(() => d.temp_max), borderColor: '#27ae60', borderDash: [5, 5], pointRadius: 0, yAxisID: 'y',
+        fill: '-1', backgroundColor: 'rgba(39,174,96,0.12)' },
+      { label: 'Umidade (%)', data: linhas.map(l => l.umid), borderColor: '#2980b9', yAxisID: 'u', pointRadius: 1 },
+    ],
+  };
+  if (!grafico) {
+    grafico = new Chart(document.getElementById('grafico'), {
+      type: 'line', data: dados,
+      options: { animation: false, scales: {
+        y: { title: { display: true, text: '°C' } },
+        u: { position: 'right', min: 0, max: 100, title: { display: true, text: '%' }, grid: { drawOnChartArea: false } } } },
+    });
+  } else {
+    grafico.data = dados;
+    grafico.update();
+  }
+}
+
+atualizarCartoes();
+setInterval(atualizarCartoes, 5000); // polling simples a cada 5 s
+</script>
+{% endblock %}

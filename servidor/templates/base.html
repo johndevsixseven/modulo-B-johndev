@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VaxGuard Connect</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f4f6f8; color: #222; }
+  nav { background: #0b4f6c; color: #fff; padding: 10px 16px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  nav a { color: #fff; }
+  nav .usuario { margin-left: auto; }
+  main { max-width: 1100px; margin: auto; padding: 16px; }
+  .cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .cartao, .caixa { background: #fff; border: 1px solid #d8dde3; border-radius: 6px; padding: 12px; }
+  .cartao a { text-decoration: none; color: inherit; display: block; }
+  .escolhido { outline: 3px solid #0b4f6c; }
+  .ONLINE { color: #1b7d33; font-weight: bold; } .OFFLINE { color: #b00020; font-weight: bold; }
+  .NORMAL { color: #1b7d33; } .ATENCAO { color: #c77700; } .CRITICO, .FALHA_SENSOR { color: #b00020; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  th, td { border: 1px solid #d8dde3; padding: 4px 6px; text-align: left; font-size: 14px; }
+  .tabela { overflow-x: auto; }
+  form.linha { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0; }
+  label { display: flex; flex-direction: column; font-size: 13px; }
+  input, select, button { font: inherit; padding: 4px 6px; }
+  .aviso { background: #fff3cd; border: 1px solid #e0c060; padding: 8px; border-radius: 4px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+{% if session.usuario %}
+<nav>
+  <b>VaxGuard Connect</b>
+  <a href="{{ url_for('painel.inicio') }}">Painel</a>
+  <a href="{{ url_for('painel.alertas') }}">Alertas e eventos</a>
+  <a href="{{ url_for('painel.relatorio') }}" target="_blank">Relatório (24 h)</a>
+  <span class="usuario">{{ session.usuario }} ({{ session.perfil }}) · <a href="{{ url_for('painel.logout') }}">Sair</a></span>
+</nav>
+{% endif %}
+<main>
+  {% for msg in get_flashed_messages() %}<div class="aviso">{{ msg }}</div>{% endfor %}
+  {% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>

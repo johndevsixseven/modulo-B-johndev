@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h2>Alertas da IA e eventos</h2>
+<form class="linha caixa" method="get">
+  <label>De <input type="date" name="inicio" value="{{ request.args.inicio }}"></label>
+  <label>Até <input type="date" name="fim" value="{{ request.args.fim }}"></label>
+  <label>Dispositivo
+    <select name="d"><option value="">todos</option>
+      {% for d in dispositivos %}<option {{ 'selected' if request.args.d == d.id }}>{{ d.id }}</option>{% endfor %}
+    </select></label>
+  <button>Filtrar</button>
+  <span>(sem datas = últimas 24 h)</span>
+</form>
+{% set filtro = request.args.to_dict() %}
+<p>
+  <a href="{{ url_for('painel.exportar_csv', tipo='alertas', **filtro) }}">Exportar alertas (CSV)</a> ·
+  <a href="{{ url_for('painel.exportar_csv', tipo='eventos', **filtro) }}">Exportar eventos (CSV)</a> ·
+  <a href="{{ url_for('painel.relatorio', **filtro) }}" target="_blank">Relatório de conformidade deste período</a>
+</p>
+
+<h3>Alertas da IA</h3>
+<div class="tabela"><table>
+  <tr><th>Quando</th><th>Dispositivo</th><th>Tipo</th><th>Mensagem</th><th>Reconhecido</th></tr>
+  {% for a in alertas %}
+  <tr>
+    <td>{{ a.ts | data }}</td><td>{{ a.dispositivo_id }}</td><td>{{ a.tipo }}</td><td>{{ a.mensagem }}</td>
+    <td>{% if a.reconhecido_em %}{{ a.reconhecido_por }} em {{ a.reconhecido_em | data }}
+        {% else %}<form method="post" action="{{ url_for('painel.reconhecer', alerta_id=a.id) }}"><button>Reconhecer</button></form>{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="5">Nenhum alerta no período.</td></tr>{% endfor %}
+</table></div>
+
+<h3>Eventos dos dispositivos</h3>
+<div class="tabela"><table>
+  <tr><th>Quando</th><th>Dispositivo</th><th>De</th><th>Para</th><th>Motivo</th></tr>
+  {% for e in eventos %}
+  <tr><td>{{ e.ts | data }}</td><td>{{ e.dispositivo_id }}</td><td>{{ e.de }}</td><td class="{{ e.para }}">{{ e.para }}</td><td>{{ e.motivo }}</td></tr>
+  {% else %}<tr><td colspan="5">Nenhum evento no período.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}
