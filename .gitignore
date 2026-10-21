@@ -1,0 +1,21 @@
+# Segredos (senha do Wi-Fi) — nunca versionar
+secrets.h
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Dados e logs gerados em execução
+*.db
+*.db-journal
+logs/
+*.log
+servidor/relatorios/
+
+# Arquivos locais / do enunciado
+CLAUDE.md
+.claude/
+SENAI DEV EXPERIENCE MÓDULO B 2026 - FINAL.pdf
