@@ -35,6 +35,8 @@ const uint32_t WATCHDOG_MS = 5000;
 // O modem continua tentando sozinho depois, então 2 s basta.
 const uint32_t WIFI_TIMEOUT_R4_MS = 2000;
 const uint32_t WIFI_ESPERA_MIN_MS = 1000; // 1ª espera entre tentativas de Wi-Fi
+// Pior caso do connect: TCP 2 s + CONNACK 2 s = 4 s < WDT 5 s (DNS é feito antes, com WDT alimentado).
+const uint16_t MQTT_TIMEOUT_S = 2;
 
 ArduinoLEDMatrix matriz;
 uint32_t epochBase  = 0; // hora recebida do NTP
@@ -99,6 +101,7 @@ uint32_t hal_epochAgora() {
 }
 
 void hal_reiniciar() { NVIC_SystemReset(); }
+const char* hal_motivoReinicio() { return "n/d"; }
 
 // 0–100 % da alimentação (ADC de 14 bits, referência = VCC).
 float hal_lerAnalogPercentual(int pino) {
@@ -132,6 +135,9 @@ const uint32_t WATCHDOG_MS = 8000;
 // Uma tentativa de Wi-Fi no ESP32 (associação + DHCP) leva alguns segundos;
 // tentar antes disso aborta a tentativa em andamento.
 const uint32_t WIFI_ESPERA_MIN_MS = 10000;
+// Pior caso do connect: TCP 2 s + CONNACK 5 s = 7 s < WDT 8 s (DNS é feito antes, com WDT alimentado).
+// 5 s porque hotspot 4G pode demorar para responder.
+const uint16_t MQTT_TIMEOUT_S = 5;
 Preferences prefs;
 bool ntpPedido = false;
 
@@ -195,8 +201,8 @@ void hal_wifiConectar(const char* ssid, const char* senha) {
   WiFi.begin(ssid, senha);
 }
 
-// ESP32: connect() já usa timeout padrão de 3 s (WDT é 8 s).
-void hal_prepararCliente(WiFiClient& cliente) { (void)cliente; }
+// ESP32: TCP limitado a 2 s (padrão é 3 s) para caber com o CONNACK no WDT de 8 s.
+void hal_prepararCliente(WiFiClient& cliente) { cliente.setConnectionTimeout(2000); }
 
 void hal_sincronizarHora() {
   if (ntpPedido) return;
@@ -210,6 +216,20 @@ uint32_t hal_epochAgora() {
 }
 
 void hal_reiniciar() { ESP.restart(); }
+
+// Motivo do último reinício: mostra no boot se foi watchdog ou queda de tensão.
+const char* hal_motivoReinicio() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return "energia ligada";
+    case ESP_RST_SW:       return "software (comando REINICIAR)";
+    case ESP_RST_PANIC:    return "erro (panic)";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      return "WATCHDOG (loop travou)";
+    case ESP_RST_BROWNOUT: return "BROWNOUT (tensao caiu: fonte/USB fraca)";
+    default:               return "outro";
+  }
+}
 
 // 0–100 % de 3,3 V. analogReadMilliVolts usa a calibração de fábrica do ADC,
 // bem mais exata que o valor cru de 12 bits (que não é linear no ESP32).

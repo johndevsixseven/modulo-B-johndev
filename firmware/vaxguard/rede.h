@@ -65,7 +65,10 @@ void rede_atualizarWifi() {
   bool conectado = WiFi.status() == WL_CONNECTED;
   if (conectado && !wifiOk) {
     Serial.print("[REDE] Wi-Fi conectado, IP ");
-    Serial.println(WiFi.localIP());
+    Serial.print(WiFi.localIP());
+    Serial.print(", RSSI ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm"); // abaixo de -80 dBm o sinal é fraco
     esperaWifi = WIFI_ESPERA_MIN_MS;
   }
   if (!conectado && wifiOk) {
@@ -89,6 +92,22 @@ void rede_atualizarWifi() {
 }
 
 // ---------- MQTT ----------
+// Texto do mqtt.state() do PubSubClient.
+const char* textoEstadoMqtt(int s) {
+  switch (s) {
+    case -4: return "sem resposta do broker (timeout) - rede pode estar bloqueando MQTT";
+    case -3: return "conexao perdida";
+    case -2: return "falha TCP - porta bloqueada ou sem internet";
+    case -1: return "desconectado";
+    case 1:  return "broker recusou a versao do protocolo";
+    case 2:  return "broker recusou o client id";
+    case 3:  return "broker indisponivel";
+    case 4:  return "usuario/senha recusados";
+    case 5:  return "nao autorizado";
+    default: return "desconhecido";
+  }
+}
+
 // Conecta ao broker só com Wi-Fi, com espera progressiva (não bloqueia entre tentativas).
 void rede_atualizarMqtt() {
   if (!wifiOk) { mqttOk = false; return; }
@@ -105,8 +124,16 @@ void rede_atualizarMqtt() {
   char clientId[40];
   snprintf(clientId, sizeof(clientId), "vaxguard-" DEVICE_ID "-%02X%02X%02X", mac[3], mac[4], mac[5]);
 
+  // DNS separado do connect: cada etapa bloqueante começa com o WDT recém-alimentado.
   hal_alimentarWatchdog();
-  bool ok = mqtt.connect(clientId); // bloqueia até ~2x MQTT_TIMEOUT_S no pior caso
+  IPAddress ip;
+  bool dnsOk = WiFi.hostByName(MQTT_HOST, ip) == 1;
+  bool ok = false;
+  if (dnsOk) {
+    mqtt.setServer(ip, MQTT_PORTA);
+    hal_alimentarWatchdog();
+    ok = mqtt.connect(clientId); // pior caso: TCP + MQTT_TIMEOUT_S (ver board.h)
+  }
   hal_alimentarWatchdog();
   ultimaTentativaMqtt = millis();
   if (ok) {
@@ -116,12 +143,14 @@ void rede_atualizarMqtt() {
     mqttOk = true;
     esperaMqtt = MQTT_ESPERA_MIN_MS;
   } else {
+    esperaMqtt = min(esperaMqtt * 2, WIFI_ESPERA_MAX_MS); // antes do log: é esta a espera real
     Serial.print("[REDE] falha no broker, state=");
-    Serial.print(mqtt.state());
-    Serial.print(", nova tentativa em ");
+    Serial.print(dnsOk ? mqtt.state() : 0);
+    Serial.print(" (");
+    Serial.print(dnsOk ? textoEstadoMqtt(mqtt.state()) : "DNS nao resolveu o broker - sem internet?");
+    Serial.print("), nova tentativa em ");
     Serial.print(esperaMqtt / 1000);
     Serial.println(" s");
-    esperaMqtt = min(esperaMqtt * 2, WIFI_ESPERA_MAX_MS);
   }
 }
 

@@ -41,7 +41,7 @@ const int BUZZER_LIGADO_NIVEL  = HIGH;
 // ---------- Rede ----------
 const uint32_t WIFI_ESPERA_MAX_MS = 30000; // reconexão (Wi-Fi e broker) dobra até 30 s (início do Wi-Fi em board.h)
 const uint32_t MQTT_ESPERA_MIN_MS = 1000;  // reconexão ao broker: 1, 2, 4.. até 30 s
-const uint16_t MQTT_TIMEOUT_S     = 2;     // curto para não segurar os alarmes
+// MQTT_TIMEOUT_S fica em board.h: depende do watchdog de cada placa.
 
 // ---------- Configuração salva na memória não volátil ----------
 const uint16_t CONFIG_MAGICO = 0x5647; // "VG" — se não bater, a memória está vazia

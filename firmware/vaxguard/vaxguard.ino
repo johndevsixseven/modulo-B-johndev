@@ -29,6 +29,8 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
   Serial.println("[ESTADO] VaxGuard Connect - " NOME_PLACA " - " DEVICE_ID);
+  Serial.print("[ESTADO] motivo do reinicio: ");
+  Serial.println(hal_motivoReinicio());
 
   hal_iniciar();
   sensores_iniciar();

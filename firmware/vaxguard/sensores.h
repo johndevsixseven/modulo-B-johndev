@@ -12,6 +12,7 @@ float   umidade      = NAN;
 float   tempNtc      = NAN;
 float   luzPct       = 0;
 bool    portaAberta  = false;
+bool    reedAberto   = false; // só para o log saber o porquê da porta aberta
 uint8_t falhasDht    = 0;   // leituras NaN seguidas
 
 void sensores_iniciar() {
@@ -35,7 +36,7 @@ float ntcParaCelsius(float pct) {
 void sensores_lerPorta() {
   luzPct = hal_lerAnalogPercentual(PINO_LDR);
   if (LDR_INVERTER) luzPct = 100.0 - luzPct;
-  bool reedAberto = digitalRead(PINO_PORTA) != PORTA_FECHADA_NIVEL;
+  reedAberto    = digitalRead(PINO_PORTA) != PORTA_FECHADA_NIVEL;
   bool luzAcesa   = luzPct > LIMIAR_LUZ_PCT; // luz dentro da câmara = porta aberta
   portaAberta = reedAberto || luzAcesa;
 }
@@ -60,7 +61,9 @@ void sensores_lerTemperatura() {
   Serial.print(" U=");           Serial.print(umidade, 0);
   Serial.print(" NTC=");         Serial.print(tempNtc, 1);
   Serial.print(" luz=");         Serial.print(luzPct, 0);
-  Serial.print("% porta=");      Serial.println(portaAberta ? "ABERTA" : "fechada");
+  Serial.print("% porta=");
+  bool luzAcesa = luzPct > LIMIAR_LUZ_PCT;
+  Serial.println(!portaAberta ? "fechada" : !reedAberto ? "ABERTA(luz)" : luzAcesa ? "ABERTA(reed+luz)" : "ABERTA(reed)");
 }
 
 // Devolve true UMA vez por aperto (borda), com debounce de 50 ms.
